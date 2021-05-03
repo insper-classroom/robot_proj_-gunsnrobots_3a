@@ -1,15 +1,15 @@
 # Base para Projeto 1 - Robótica 
 
-Nome do grupo: 
+Nome do grupo: Projeto GunsNRobots
 
 ____________
 
 Nome dos integrantes: 
 
-* pessoa 1
-* pessoa 2
-* pessoa 3
-* pessoa 4
+* Raphael Lahiry
+* Paulo Kim 
+* Gabriel Vilaça
+* Rodrigo Coelho
 
 
 Visite sempre o enunciado abaixo para atualizacões: 
