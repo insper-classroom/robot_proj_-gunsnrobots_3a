@@ -8,7 +8,6 @@ Nome dos integrantes:
 
 * Raphael Lahiry
 * Paulo Kim 
-* Gabriel Vilaça
 * Rodrigo Coelho
 
 
