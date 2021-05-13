@@ -19,12 +19,17 @@ from geometry_msgs.msg import Twist, Vector3, Pose, Vector3Stamped
 from sensor_msgs.msg import LaserScan
 from scipy.spatial.transform import Rotation as R
 from std_msgs.msg import Header
+import os
 
 import projeto_utils
 
 ranges = None
 minv = 0
 maxv = 10
+angulo = 0
+distancia = 10
+const_angulo = True
+
 
 bridge = CvBridge()
 
@@ -60,8 +65,20 @@ def scaneou(dado):
     
     ranges = np.array(dado.ranges).round(decimals=2)
     distancia = ranges[0]
+            
 
+def recebe_odometria(data):
+    global angulo
 
+    quat = data.pose.pose.orientation
+    lista = [quat.x, quat.y, quat.z, quat.w]
+    angulos = np.degrees(transformations.euler_from_quaternion(lista))    
+    
+    angulo = round(angulos[2], 2)
+    if angulo < 0:
+        angulo += 360
+
+    print(angulo)
 
 ## Variáveis novas criadas pelo gabarito
 
@@ -89,7 +106,6 @@ def roda_todo_frame(imagem):
 
     try:
         cv_image = bridge.compressed_imgmsg_to_cv2(imagem, "bgr8")
-        cv2.imshow("Camera", cv_image)
         ##
         copia = cv_image.copy() # se precisar usar no while
 
@@ -104,12 +120,9 @@ def roda_todo_frame(imagem):
 
             angle_yellow = ang_deg
 
-            projeto_utils.texto(saida_bgr, f"Angulo graus: {ang_deg}", (15,50), color=(0,255,255))
-            projeto_utils.texto(saida_bgr, f"Angulo rad: {ang}", (15,90), color=(0,255,255))
-
-            cv2.imshow("centro", img)
-            cv2.imshow("angulo", saida_bgr)
-
+            projeto_utils.texto(cv_image, f"Distancia obstaculo: {distancia}", (15,50), color=(0,0,255))
+            
+            cv2.imshow("Camera", cv_image)
 
         cv2.waitKey(1)
     except CvBridgeError as e:
@@ -127,7 +140,8 @@ if __name__=="__main__":
     recebe_scan = rospy.Subscriber("/scan", LaserScan, scaneou)
     pose_sub = rospy.Subscriber('/odom', Odometry , mypose)
     recebedor = rospy.Subscriber(topico_imagem, CompressedImage, roda_todo_frame, queue_size=4, buff_size = 2**24)
-
+    ref_odometria = rospy.Subscriber("/odom", Odometry, recebe_odometria)
+    
     zero = Twist(Vector3(0,0,0), Vector3(0,0,0))         
 
 
@@ -147,8 +161,7 @@ if __name__=="__main__":
     AVANCA = 0
     AVANCA_RAPIDO = 1
     ALINHA = 2
-    AVANCA_PROXIMO = 3
-    TERMINOU = 4
+    MEIA_VOLTA = 3
 
     state = INICIAL
 
@@ -171,33 +184,84 @@ if __name__=="__main__":
         vel = Twist(Vector3(v_slow,0,0), Vector3(0,0,w)) 
         cmd_vel.publish(vel)        
 
-    def avanca_proximo():
-        pass
-
     def terminou():
         zero = Twist(Vector3(0,0,0), Vector3(0,0,0))         
         cmd_vel.publish(zero)
+        
+    rodando = False
+    angulo_final_calibrado = None
+    angulo_final_original = None
+    
+    def meia_volta():
+        global const_angulo
+        global rodando
+        global angulo_final_original
+        global angulo_final_calibrado 
+        
+        rodando = True
+        
+        if const_angulo:
+            angulo_final_original = angulo + 180
+            if angulo_final_original > 360:
+                angulo_final_calibrado = angulo_final_original - 360
+            else:
+                angulo_final_calibrado = angulo_final_original
+            
+            const_angulo = False
+        
+        if angulo_final_original > 360:
+                
+                if angulo > 180:
+                    if angulo > angulo_final_calibrado:
+                        vel = Twist(Vector3(0,0,0), Vector3(0,0,0.4))
+                        cmd_vel.publish(vel)
+                    else:
+                        rodando = False
+                        const_angulo = True
+                else:
+                    if angulo < angulo_final_calibrado:
+                        vel = Twist(Vector3(0,0,0), Vector3(0,0,0.4))
+                        cmd_vel.publish(vel)
+                    else:
+                        rodando = False
+                        const_angulo = True
+                    
+        else:
+            if angulo < angulo_final_calibrado:
+                vel = Twist(Vector3(0,0,0), Vector3(0,0,0.4))
+                cmd_vel.publish(vel)
+            else:
+                rodando = False
+                const_angulo = True
 
     def dispatch():
         "Logica de determinar o proximo estado"
         global state
         
-        if c_img[x] - tol_centro < centro_yellow[x] < c_img[x] + tol_centro:
-            state = AVANCA
-            if - tol_ang< angle_yellow  < tol_ang:  # para angulos centrados na vertical, regressao de x = f(y) como está feito
-                state = AVANCA_RAPIDO
-        else: 
+        if distancia < 1 or rodando:
+            state = MEIA_VOLTA
+            
+        else:
+            if c_img[x] - tol_centro < centro_yellow[x] < c_img[x] + tol_centro:
+                state = AVANCA
+                if - tol_ang < angle_yellow  < tol_ang:  # para angulos centrados na vertical, regressao de x = f(y) como está feito
+                    state = AVANCA_RAPIDO
+            else: 
                 state = ALINHA        
 
-    acoes = {INICIAL:inicial, AVANCA: avanca, AVANCA_RAPIDO: avanca_rapido, ALINHA: alinha, AVANCA_PROXIMO: avanca_proximo , TERMINOU: terminou}
+    acoes = {INICIAL:inicial, AVANCA: avanca, AVANCA_RAPIDO: avanca_rapido, ALINHA: alinha, MEIA_VOLTA: meia_volta}
 
 
     r = rospy.Rate(200) 
 
     while not rospy.is_shutdown():
+        os.system('clear')
         print("Estado: ", state)
+        print("Angulo: ", angulo)
+        print("Angulo Final Original: ", angulo_final_original)
+        print("Angulo Final Calibrado: ", angulo_final_calibrado)
+        print("Const", const_angulo)
+        print("Rodando", rodando)
         acoes[state]()  # executa a funcão que está no dicionário
         dispatch()            
         r.sleep()
-
-
