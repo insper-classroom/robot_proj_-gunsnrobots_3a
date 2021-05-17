@@ -190,6 +190,30 @@ def identifica_cor(frame):
         cv2.line(img_rgb, (int( point[0] - length/2 ), point[1] ),  (int( point[0] + length/2 ), point[1]), color ,width, length)
         cv2.line(img_rgb, (point[0], int(point[1] - length/2) ), (point[0], int( point[1] + length/2 ) ),color ,width, length) 
 
+    def identifica_creeper(frame):
+        frame_hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+
+        # Creeper Azul
+        cor_menor_azul = np.array([78, 50, 50]) 
+        cor_maior_azul = np.array([93, 255, 255])
+        creeper_azul = cv2.inRange(frame_hsv, cor_menor_azul, cor_maior_azul)
+
+        # Creeper Verde
+        cor_menor_verde = np.array([45, 50, 50]) 
+        cor_maior_verde = np.array([60, 255, 255])
+        creeper_verde = cv2.inRange(frame_hsv, cor_menor_verde, cor_maior_verde)
+
+        # Creeper Vermelho
+        cor_menor_vermelho = np.array([0, 50, 50])
+        cor_maior_vermelho = np.array([8, 255, 255])
+        creeper_vermelho = cv2.inRange(frame_hsv, cor_menor_vermelho, cor_maior_vermelho)
+
+        cor_menor_vermelho = np.array([172, 50, 50])
+        cor_maior_vermelho = np.array([180, 255, 255])
+        creeper_vermelho += cv2.inRange(frame_hsv, cor_menor_vermelho, cor_maior_vermelho)
+
+
+
 
 
     # A operação MORPH_CLOSE fecha todos os buracos na máscara menores 

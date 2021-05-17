@@ -162,6 +162,7 @@ if __name__=="__main__":
     AVANCA_RAPIDO = 1
     ALINHA = 2
     MEIA_VOLTA = 3
+    KILL_CREEPER = 4
 
     state = INICIAL
 
@@ -234,11 +235,14 @@ if __name__=="__main__":
                 rodando = False
                 const_angulo = True
 
+    def kill_creeper():
+        return 
+
     def dispatch():
         "Logica de determinar o proximo estado"
         global state
         
-        if distancia < 1 or rodando:
+        if distancia < 0.5 or rodando:
             state = MEIA_VOLTA
             
         else:
@@ -249,7 +253,15 @@ if __name__=="__main__":
             else: 
                 state = ALINHA        
 
-    acoes = {INICIAL:inicial, AVANCA: avanca, AVANCA_RAPIDO: avanca_rapido, ALINHA: alinha, MEIA_VOLTA: meia_volta}
+    acoes = {
+            INICIAL:inicial, 
+            AVANCA: avanca, 
+            AVANCA_RAPIDO: avanca_rapido, 
+            ALINHA: alinha, 
+            MEIA_VOLTA: meia_volta, 
+            KILL_CREEPER: kill_creeper
+            }
+
 
 
     r = rospy.Rate(200) 
