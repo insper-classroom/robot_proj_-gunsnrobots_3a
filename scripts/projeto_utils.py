@@ -36,6 +36,7 @@ low = np.array([22, 50, 50],dtype=np.uint8)
 high = np.array([36, 255, 255],dtype=np.uint8)
 
 def filter_color(bgr, low, high):
+    bgr = bgr.copy()
     """ REturns a mask within the range"""
     hsv = cv2.cvtColor(bgr, cv2.COLOR_BGR2HSV)
     mask = cv2.inRange(hsv, low, high)
@@ -174,6 +175,9 @@ def identifica_cor(frame):
     # Precisamos dividir o inRange em duas partes para fazer a detecção 
     # do vermelho:
     # frame = cv2.flip(frame, -1) # flip 0: eixo x, 1: eixo y, -1: 2 eixos
+
+    frame = frame.copy()
+
     frame_hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
 
     cor_menor = np.array([100, 50, 50]) # Adaptado para azul
@@ -189,32 +193,6 @@ def identifica_cor(frame):
     def cross(img_rgb, point, color, width,length):
         cv2.line(img_rgb, (int( point[0] - length/2 ), point[1] ),  (int( point[0] + length/2 ), point[1]), color ,width, length)
         cv2.line(img_rgb, (point[0], int(point[1] - length/2) ), (point[0], int( point[1] + length/2 ) ),color ,width, length) 
-
-    def identifica_creeper(frame):
-        frame_hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
-
-        # Creeper Azul
-        cor_menor_azul = np.array([78, 50, 50]) 
-        cor_maior_azul = np.array([93, 255, 255])
-        creeper_azul = cv2.inRange(frame_hsv, cor_menor_azul, cor_maior_azul)
-
-        # Creeper Verde
-        cor_menor_verde = np.array([45, 50, 50]) 
-        cor_maior_verde = np.array([60, 255, 255])
-        creeper_verde = cv2.inRange(frame_hsv, cor_menor_verde, cor_maior_verde)
-
-        # Creeper Vermelho
-        cor_menor_vermelho = np.array([0, 50, 50])
-        cor_maior_vermelho = np.array([8, 255, 255])
-        creeper_vermelho = cv2.inRange(frame_hsv, cor_menor_vermelho, cor_maior_vermelho)
-
-        cor_menor_vermelho = np.array([172, 50, 50])
-        cor_maior_vermelho = np.array([180, 255, 255])
-        creeper_vermelho += cv2.inRange(frame_hsv, cor_menor_vermelho, cor_maior_vermelho)
-
-
-
-
 
     # A operação MORPH_CLOSE fecha todos os buracos na máscara menores 
     # que um quadrado 7x7. É muito útil para juntar vários 
@@ -254,3 +232,58 @@ def identifica_cor(frame):
     cv2.imshow('seg', frame)
 
     return media, centro, maior_contorno_area
+
+def identifica_creeper(frame):
+    frame_hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+
+    # Creeper Azul
+    cor_menor_azul = np.array([78, 50, 50]) 
+    cor_maior_azul = np.array([93, 255, 255])
+    creeper_azul = cv2.inRange(frame_hsv, cor_menor_azul, cor_maior_azul)
+
+    # Creeper Verde
+    cor_menor_verde = np.array([45, 50, 50]) 
+    cor_maior_verde = np.array([60, 255, 255])
+    creeper_verde = cv2.inRange(frame_hsv, cor_menor_verde, cor_maior_verde)
+
+    # Creeper Vermelho
+    cor_menor_vermelho = np.array([0, 200, 200])
+    cor_maior_vermelho = np.array([8, 255, 255])
+    creeper_vermelho = cv2.inRange(frame_hsv, cor_menor_vermelho, cor_maior_vermelho)
+
+    cor_menor_vermelho = np.array([172, 200, 200])
+    cor_maior_vermelho = np.array([180, 255, 255])
+    creeper_vermelho += cv2.inRange(frame_hsv, cor_menor_vermelho, cor_maior_vermelho)
+
+    return creeper_vermelho, creeper_verde, creeper_azul
+
+def area_creeper(creeper):
+    segmentado_cor = cv2.morphologyEx(creeper,cv2.MORPH_CLOSE,np.ones((7, 7)))
+    contornos, arvore = cv2.findContours(segmentado_cor, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE) 
+
+    centro = (creeper.shape[1]//2, creeper.shape[0]//2)
+
+    maior_contorno = None
+    maior_contorno_area = 0
+    media = None
+
+    if contornos:
+        for cnt in contornos:
+            area = cv2.contourArea(cnt)
+        if area > maior_contorno_area:
+            maior_contorno = cnt
+            maior_contorno_area = area
+        # Encontramos o centro do contorno fazendo a média de todos seus pontos.
+        if not maior_contorno is None:
+            maior_contorno = np.reshape(maior_contorno, (maior_contorno.shape[0], 2))
+            media = maior_contorno.mean(axis=0)
+            media = media.astype(np.int32)
+        else:
+            media = (0, 0)
+
+    return media, centro, maior_contorno_area
+    
+
+
+
+

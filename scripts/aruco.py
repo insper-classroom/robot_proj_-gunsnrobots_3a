@@ -126,8 +126,8 @@ def roda_todo_frame(imagem):
 			
 
 		# Exibe tela
-		cv2.imshow("Camera", cv_image)
-		cv2.waitKey(1)
+		# cv2.imshow("Camera", cv_image)
+		# cv2.waitKey(1)
 	except CvBridgeError as e:
 		print('ex', e)
 	

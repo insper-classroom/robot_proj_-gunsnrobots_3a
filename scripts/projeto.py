@@ -2,6 +2,9 @@
 # -*- coding:utf-8 -*-
 
 from __future__ import print_function, division
+
+from numpy.lib.function_base import copy
+from numpy.linalg.linalg import _matrix_rank_dispatcher
 import rospy
 import numpy as np
 import numpy
@@ -22,6 +25,7 @@ from std_msgs.msg import Header
 import os
 
 import projeto_utils
+import aruco
 
 ranges = None
 minv = 0
@@ -65,6 +69,7 @@ def scaneou(dado):
     
     ranges = np.array(dado.ranges).round(decimals=2)
     distancia = ranges[0]
+    lateral_direita = ranges[1]
             
 
 def recebe_odometria(data):
@@ -93,6 +98,12 @@ high = projeto_utils.high
 
 centro_caixa = (320, 240)
 
+creeper_vermelho = np.zeros((640, 480, 1), np.uint8)
+creeper_verde = np.zeros((640, 480, 1), np.uint8)
+creeper_azul = np.zeros((640, 480, 1), np.uint8)
+
+matando = False
+
 ## 
 
 # A função a seguir é chamada sempre que chega um novo frame
@@ -100,6 +111,9 @@ def roda_todo_frame(imagem):
     global centro_yellow
     global m
     global angle_yellow
+    global creeper_vermelho
+    global creeper_verde
+    global creeper_azul
 
     ### 
     ## Vamos fazer o gabarito para a caixa azul, que era mais distante 
@@ -113,6 +127,8 @@ def roda_todo_frame(imagem):
             mask = projeto_utils.filter_color(copia, low, high)                
             img, centro_yellow  =  projeto_utils.center_of_mass_region(mask, 200, 300, mask.shape[1], mask.shape[0])  
 
+            creeper_vermelho, creeper_verde, creeper_azul  = projeto_utils.identifica_creeper(cv_image)
+
             saida_bgr, m, h = projeto_utils.ajuste_linear_grafico_x_fy(mask)
 
             ang = math.atan(m)
@@ -122,7 +138,7 @@ def roda_todo_frame(imagem):
 
             projeto_utils.texto(cv_image, f"Distancia obstaculo: {distancia}", (15,50), color=(0,0,255))
             
-            cv2.imshow("Camera", cv_image)
+            cv2.imshow("Camera", creeper_vermelho)
 
         cv2.waitKey(1)
     except CvBridgeError as e:
@@ -199,6 +215,7 @@ if __name__=="__main__":
         global angulo_final_original
         global angulo_final_calibrado 
         
+        
         rodando = True
         
         if const_angulo:
@@ -236,13 +253,52 @@ if __name__=="__main__":
                 const_angulo = True
 
     def kill_creeper():
-        return 
+
+        global matando
+        
+        VERMELHO = True
+        VERDE = False
+        AZUL = False
+
+        if distancia < 0.1:
+            matando = False
+        else:
+            matando = True
+
+        def centraliza(media, centro, maior_contorno_area):
+            if media is not None:
+                if len(media) != 0 and len(centro) != 0:
+                    if (media[0] > centro[0] - 5 and media[0] < centro[0] + 5):
+                        vel = Twist(Vector3(0.2,0,0), Vector3(0,0,0))
+                    else:
+                        if (media[0] > centro[0]):
+                            vel = Twist(Vector3(0,0,0), Vector3(0,0,-0.1))
+                        if (media[0] < centro[0]):
+                            vel = Twist(Vector3(0,0,0), Vector3(0,0,0.1))
+
+        if VERMELHO:
+            media, centro, maior_contorno_area = projeto_utils.area_creeper(creeper_vermelho)
+            centraliza(media, centro, maior_contorno_area)
+            print(media, centro)
+            
+
+        if VERDE:
+            media, centro, maior_contorno_area = projeto_utils.area_creeper(creeper_verde)
+            centraliza(media, centro, maior_contorno_area)
+
+        if AZUL:
+            media, centro, maior_contorno_area = projeto_utils.area_creeper(creeper_azul)
+            centraliza(media, centro, maior_contorno_area)
+
 
     def dispatch():
         "Logica de determinar o proximo estado"
         global state
+        media, centro, maior_contorno_area = projeto_utils.area_creeper(creeper_vermelho)
+        if maior_contorno_area > 2200 or matando:
+            state = KILL_CREEPER
         
-        if distancia < 0.5 or rodando:
+        elif distancia < 0.5 or rodando:
             state = MEIA_VOLTA
             
         else:
@@ -258,7 +314,7 @@ if __name__=="__main__":
             AVANCA: avanca, 
             AVANCA_RAPIDO: avanca_rapido, 
             ALINHA: alinha, 
-            MEIA_VOLTA: meia_volta, 
+            MEIA_VOLTA: meia_volta,
             KILL_CREEPER: kill_creeper
             }
 
@@ -266,8 +322,12 @@ if __name__=="__main__":
 
     r = rospy.Rate(200) 
 
-    while not rospy.is_shutdown():
-        os.system('clear')
+    while not rospy.is_shutdown(): 
+        try:
+            media, centro, maior_contorno_area = projeto_utils.area_creeper(creeper_vermelho)
+            print("Area: ", maior_contorno_area)
+        except:
+            pass 
         print("Estado: ", state)
         print("Angulo: ", angulo)
         print("Angulo Final Original: ", angulo_final_original)
