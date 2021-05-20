@@ -69,7 +69,7 @@ def scaneou(dado):
     
     ranges = np.array(dado.ranges).round(decimals=2)
     distancia = ranges[0]
-    lateral_direita = ranges[1]
+    lateral_direita = ranges[89]
             
 
 def recebe_odometria(data):
@@ -260,26 +260,29 @@ if __name__=="__main__":
         VERDE = False
         AZUL = False
 
-        if distancia < 0.1:
+        if distancia < 0.2:
             matando = False
         else:
             matando = True
 
         def centraliza(media, centro, maior_contorno_area):
             if media is not None:
-                if len(media) != 0 and len(centro) != 0:
-                    if (media[0] > centro[0] - 5 and media[0] < centro[0] + 5):
-                        vel = Twist(Vector3(0.2,0,0), Vector3(0,0,0))
+                if len(media) != 0:
+                    print(media, centro)
+                    print("DISTANCIA: " + str(distancia))
+                    if (media[0] > centro[0] - 10 and media[0] < centro[0] + 10):
+                        vel = Twist(Vector3(0.3,0,0), Vector3(0,0,0))
                     else:
                         if (media[0] > centro[0]):
-                            vel = Twist(Vector3(0,0,0), Vector3(0,0,-0.1))
+                            vel = Twist(Vector3(0,0,0), Vector3(0,0,-0.3))
                         if (media[0] < centro[0]):
-                            vel = Twist(Vector3(0,0,0), Vector3(0,0,0.1))
+                            vel = Twist(Vector3(0,0,0), Vector3(0,0,0.3))
+                    cmd_vel.publish(vel)
 
         if VERMELHO:
             media, centro, maior_contorno_area = projeto_utils.area_creeper(creeper_vermelho)
             centraliza(media, centro, maior_contorno_area)
-            print(media, centro)
+            
             
 
         if VERDE:

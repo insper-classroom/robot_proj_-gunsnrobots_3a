@@ -279,7 +279,7 @@ def area_creeper(creeper):
             media = maior_contorno.mean(axis=0)
             media = media.astype(np.int32)
         else:
-            media = (0, 0)
+            media = (320, 240)
 
     return media, centro, maior_contorno_area
     
