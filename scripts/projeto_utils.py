@@ -237,13 +237,13 @@ def identifica_creeper(frame):
     frame_hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
 
     # Creeper Azul
-    cor_menor_azul = np.array([78, 50, 50]) 
-    cor_maior_azul = np.array([93, 255, 255])
+    cor_menor_azul = np.array([75, 50, 50]) 
+    cor_maior_azul = np.array([95, 255, 255])
     creeper_azul = cv2.inRange(frame_hsv, cor_menor_azul, cor_maior_azul)
 
     # Creeper Verde
-    cor_menor_verde = np.array([45, 50, 50]) 
-    cor_maior_verde = np.array([60, 255, 255])
+    cor_menor_verde = np.array([40, 50, 50]) 
+    cor_maior_verde = np.array([65, 255, 255])
     creeper_verde = cv2.inRange(frame_hsv, cor_menor_verde, cor_maior_verde)
 
     # Creeper Vermelho

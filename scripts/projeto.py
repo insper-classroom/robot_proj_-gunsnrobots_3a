@@ -138,7 +138,7 @@ def roda_todo_frame(imagem):
 
             projeto_utils.texto(cv_image, f"Distancia obstaculo: {distancia}", (15,50), color=(0,0,255))
             
-            cv2.imshow("Camera", creeper_vermelho)
+            cv2.imshow("Camera", creeper_verde)
 
         cv2.waitKey(1)
     except CvBridgeError as e:
@@ -256,11 +256,11 @@ if __name__=="__main__":
 
         global matando
         
-        VERMELHO = True
-        VERDE = False
+        VERMELHO = False
+        VERDE = True
         AZUL = False
 
-        if distancia < 0.2:
+        if distancia < 0.3:
             matando = False
         else:
             matando = True
@@ -271,12 +271,12 @@ if __name__=="__main__":
                     print(media, centro)
                     print("DISTANCIA: " + str(distancia))
                     if (media[0] > centro[0] - 10 and media[0] < centro[0] + 10):
-                        vel = Twist(Vector3(0.3,0,0), Vector3(0,0,0))
+                        vel = Twist(Vector3(0.2,0,0), Vector3(0,0,0))
                     else:
                         if (media[0] > centro[0]):
-                            vel = Twist(Vector3(0,0,0), Vector3(0,0,-0.3))
+                            vel = Twist(Vector3(0,0,0), Vector3(0,0,-0.1))
                         if (media[0] < centro[0]):
-                            vel = Twist(Vector3(0,0,0), Vector3(0,0,0.3))
+                            vel = Twist(Vector3(0,0,0), Vector3(0,0,0.1))
                     cmd_vel.publish(vel)
 
         if VERMELHO:
@@ -288,6 +288,7 @@ if __name__=="__main__":
         if VERDE:
             media, centro, maior_contorno_area = projeto_utils.area_creeper(creeper_verde)
             centraliza(media, centro, maior_contorno_area)
+            print(maior_contorno_area)
 
         if AZUL:
             media, centro, maior_contorno_area = projeto_utils.area_creeper(creeper_azul)
@@ -297,8 +298,8 @@ if __name__=="__main__":
     def dispatch():
         "Logica de determinar o proximo estado"
         global state
-        media, centro, maior_contorno_area = projeto_utils.area_creeper(creeper_vermelho)
-        if maior_contorno_area > 2200 or matando:
+        media, centro, maior_contorno_area = projeto_utils.area_creeper(creeper_verde)
+        if maior_contorno_area > 1900 or matando:
             state = KILL_CREEPER
         
         elif distancia < 0.5 or rodando:
@@ -327,7 +328,7 @@ if __name__=="__main__":
 
     while not rospy.is_shutdown(): 
         try:
-            media, centro, maior_contorno_area = projeto_utils.area_creeper(creeper_vermelho)
+            media, centro, maior_contorno_area = projeto_utils.area_creeper(creeper_verde)
             print("Area: ", maior_contorno_area)
         except:
             pass 
