@@ -237,8 +237,8 @@ def identifica_creeper(frame):
     frame_hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
 
     # Creeper Azul
-    cor_menor_azul = np.array([75, 50, 50]) 
-    cor_maior_azul = np.array([95, 255, 255])
+    cor_menor_azul = np.array([80, 50, 50]) 
+    cor_maior_azul = np.array([100, 255, 255])
     creeper_azul = cv2.inRange(frame_hsv, cor_menor_azul, cor_maior_azul)
 
     # Creeper Verde
@@ -259,7 +259,11 @@ def identifica_creeper(frame):
 
 def area_creeper(creeper):
     segmentado_cor = cv2.morphologyEx(creeper,cv2.MORPH_CLOSE,np.ones((7, 7)))
-    contornos, arvore = cv2.findContours(segmentado_cor, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE) 
+
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE,(6,6))
+    mask = cv2.morphologyEx(segmentado_cor, cv2.MORPH_OPEN, kernel )
+    mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel ) 
+    contornos, _ = cv2.findContours(mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE) 
 
     centro = (creeper.shape[1]//2, creeper.shape[0]//2)
 
@@ -270,9 +274,9 @@ def area_creeper(creeper):
     if contornos:
         for cnt in contornos:
             area = cv2.contourArea(cnt)
-        if area > maior_contorno_area:
-            maior_contorno = cnt
-            maior_contorno_area = area
+            if area > maior_contorno_area:
+                maior_contorno = cnt
+                maior_contorno_area = area
         # Encontramos o centro do contorno fazendo a média de todos seus pontos.
         if not maior_contorno is None:
             maior_contorno = np.reshape(maior_contorno, (maior_contorno.shape[0], 2))
@@ -281,7 +285,14 @@ def area_creeper(creeper):
         else:
             media = (320, 240)
 
+
     return media, centro, maior_contorno_area
+
+def morpho_limpa(mask):
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE,(6,6))
+    mask = cv2.morphologyEx( mask, cv2.MORPH_OPEN, kernel )
+    mask = cv2.morphologyEx( mask, cv2.MORPH_CLOSE, kernel )    
+    return mask
     
 
 

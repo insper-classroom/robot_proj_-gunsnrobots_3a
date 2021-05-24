@@ -105,7 +105,7 @@ matando = False
 voltar_pista = True
 maior_contorno_area = 0
 
-cor = 'vermelho'
+cor = 'azul'
 
 dic_creepers = {}
 
@@ -141,7 +141,6 @@ def roda_todo_frame(imagem):
                         'vermelho':creeper_vermelho,
                         'verde':creeper_verde
                         }
-            
 
             saida_bgr, m, h = projeto_utils.ajuste_linear_grafico_x_fy(mask)
 
