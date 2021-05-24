@@ -69,7 +69,6 @@ def scaneou(dado):
     
     ranges = np.array(dado.ranges).round(decimals=2)
     distancia = ranges[0]
-    lateral_direita = ranges[89]
             
 
 def recebe_odometria(data):
@@ -103,6 +102,13 @@ creeper_verde = np.zeros((640, 480, 1), np.uint8)
 creeper_azul = np.zeros((640, 480, 1), np.uint8)
 
 matando = False
+voltar_pista = True
+maior_contorno_area = 0
+
+cor = 'vermelho'
+
+dic_creepers = {}
+
 
 ## 
 
@@ -114,6 +120,8 @@ def roda_todo_frame(imagem):
     global creeper_vermelho
     global creeper_verde
     global creeper_azul
+
+    global dic_creepers
 
     ### 
     ## Vamos fazer o gabarito para a caixa azul, que era mais distante 
@@ -128,6 +136,12 @@ def roda_todo_frame(imagem):
             img, centro_yellow  =  projeto_utils.center_of_mass_region(mask, 200, 300, mask.shape[1], mask.shape[0])  
 
             creeper_vermelho, creeper_verde, creeper_azul  = projeto_utils.identifica_creeper(cv_image)
+            dic_creepers = {
+                        'azul':creeper_azul, 
+                        'vermelho':creeper_vermelho,
+                        'verde':creeper_verde
+                        }
+            
 
             saida_bgr, m, h = projeto_utils.ajuste_linear_grafico_x_fy(mask)
 
@@ -138,7 +152,7 @@ def roda_todo_frame(imagem):
 
             projeto_utils.texto(cv_image, f"Distancia obstaculo: {distancia}", (15,50), color=(0,0,255))
             
-            cv2.imshow("Camera", creeper_verde)
+            cv2.imshow("Camera", dic_creepers[cor])
 
         cv2.waitKey(1)
     except CvBridgeError as e:
@@ -168,7 +182,7 @@ if __name__=="__main__":
     c_img = (320,240) # Centro da imagem  que ao todo é 640 x 480
 
     v_slow = 0.3
-    v_rapido = 0.85
+    v_rapido = 0.4
     w_slow = 0.2
     w_rapido = 0.75
 
@@ -255,10 +269,11 @@ if __name__=="__main__":
     def kill_creeper():
 
         global matando
+        global maior_contorno_area
         
-        VERMELHO = False
-        VERDE = True
-        AZUL = False
+        # VERMELHO = False
+        # VERDE = False
+        # AZUL = True
 
         if distancia < 0.3:
             matando = False
@@ -271,39 +286,30 @@ if __name__=="__main__":
                     print(media, centro)
                     print("DISTANCIA: " + str(distancia))
                     if (media[0] > centro[0] - 10 and media[0] < centro[0] + 10):
-                        vel = Twist(Vector3(0.2,0,0), Vector3(0,0,0))
+                        vel = Twist(Vector3(0.1,0,0), Vector3(0,0,0))
                     else:
                         if (media[0] > centro[0]):
                             vel = Twist(Vector3(0,0,0), Vector3(0,0,-0.1))
                         if (media[0] < centro[0]):
                             vel = Twist(Vector3(0,0,0), Vector3(0,0,0.1))
                     cmd_vel.publish(vel)
-
-        if VERMELHO:
-            media, centro, maior_contorno_area = projeto_utils.area_creeper(creeper_vermelho)
-            centraliza(media, centro, maior_contorno_area)
-            
-            
-
-        if VERDE:
-            media, centro, maior_contorno_area = projeto_utils.area_creeper(creeper_verde)
-            centraliza(media, centro, maior_contorno_area)
-            print(maior_contorno_area)
-
-        if AZUL:
-            media, centro, maior_contorno_area = projeto_utils.area_creeper(creeper_azul)
-            centraliza(media, centro, maior_contorno_area)
+        
+        media, centro, maior_contorno_area = projeto_utils.area_creeper(dic_creepers[cor])
+        centraliza(media, centro, maior_contorno_area)
 
 
     def dispatch():
+        
         "Logica de determinar o proximo estado"
         global state
-        media, centro, maior_contorno_area = projeto_utils.area_creeper(creeper_verde)
-        if maior_contorno_area > 1900 or matando:
-            state = KILL_CREEPER
+        global voltar_pista
         
-        elif distancia < 0.5 or rodando:
+        
+        if distancia < 0.3 or rodando:
             state = MEIA_VOLTA
+
+        elif 1600 < maior_contorno_area < 3000 or matando:
+            state = KILL_CREEPER
             
         else:
             if c_img[x] - tol_centro < centro_yellow[x] < c_img[x] + tol_centro:
@@ -328,7 +334,7 @@ if __name__=="__main__":
 
     while not rospy.is_shutdown(): 
         try:
-            media, centro, maior_contorno_area = projeto_utils.area_creeper(creeper_verde)
+            media, centro, maior_contorno_area = projeto_utils.area_creeper(dic_creepers[cor])
             print("Area: ", maior_contorno_area)
         except:
             pass 
@@ -338,6 +344,7 @@ if __name__=="__main__":
         print("Angulo Final Calibrado: ", angulo_final_calibrado)
         print("Const", const_angulo)
         print("Rodando", rodando)
+        print('Matando:', matando)
         acoes[state]()  # executa a funcão que está no dicionário
         dispatch()            
         r.sleep()
