@@ -22,6 +22,7 @@ from geometry_msgs.msg import Twist, Vector3, Pose, Vector3Stamped
 from sensor_msgs.msg import LaserScan
 from scipy.spatial.transform import Rotation as R
 from std_msgs.msg import Header
+from std_msgs.msg import Float64
 import os
 
 import projeto_utils
@@ -118,6 +119,7 @@ dic_creepers = {}
 matando = False
 voltar_pista = True
 id_encontrado_poha = False
+agarradinha = False
 maior_contorno_area = 0
 ids = 0
 
@@ -150,7 +152,7 @@ def roda_todo_frame(imagem):
             mask = projeto_utils.filter_color(copia, low, high)                
             img, centro_yellow  =  projeto_utils.center_of_mass_region(mask, 200, 300, mask.shape[1], mask.shape[0])  
 
-            #----------------------------------------- CREEPERS ---------------------------------------#
+            #----------------------------------------- CREEPERS ----------------------------------------#
             creeper_vermelho, creeper_verde, creeper_azul  = projeto_utils.identifica_creeper(cv_image)
             dic_creepers = {
                         'azul':creeper_azul, 
@@ -256,6 +258,9 @@ if __name__=="__main__":
     pose_sub = rospy.Subscriber('/odom', Odometry , mypose)
     recebedor = rospy.Subscriber(topico_imagem, CompressedImage, roda_todo_frame, queue_size=4, buff_size = 2**24)
     ref_odometria = rospy.Subscriber("/odom", Odometry, recebe_odometria)
+
+    ombro = rospy.Publisher("/joint1_position_controller/command", Float64, queue_size=1)
+    garra = rospy.Publisher("/joint2_position_controller/command", Float64, queue_size=1)
     
     zero = Twist(Vector3(0,0,0), Vector3(0,0,0))         
 
@@ -381,7 +386,6 @@ if __name__=="__main__":
         "Logica de determinar o proximo estado"
         global state
         global voltar_pista
-        
         
         if distancia < 0.3 or rodando:
             state = MEIA_VOLTA
