@@ -25,7 +25,7 @@ from std_msgs.msg import Header
 import os
 
 import projeto_utils
-import aruco
+import cv2.aruco as aruco
 
 ranges = None
 minv = 0
@@ -33,6 +33,17 @@ maxv = 10
 angulo = 0
 distancia = 10
 const_angulo = True
+
+#--- Get the camera calibration path
+calib_path  = "/home/borg/catkin_ws/src/robot21.1/ros/exemplos211/scripts/"
+camera_matrix   = np.loadtxt(calib_path+'cameraMatrix_raspi.txt', delimiter=',')
+camera_distortion   = np.loadtxt(calib_path+'cameraDistortion_raspi.txt', delimiter=',')
+
+#--- Define the aruco dictionary
+aruco_dict  = aruco.getPredefinedDictionary(aruco.DICT_6X6_250)
+parameters  = aruco.DetectorParameters_create()
+parameters.minDistanceToBorder = 0
+parameters.adaptiveThreshWinSizeMax = 1000
 
 
 bridge = CvBridge()
@@ -100,17 +111,21 @@ centro_caixa = (320, 240)
 creeper_vermelho = np.zeros((640, 480, 1), np.uint8)
 creeper_verde = np.zeros((640, 480, 1), np.uint8)
 creeper_azul = np.zeros((640, 480, 1), np.uint8)
-
-matando = False
-voltar_pista = True
-maior_contorno_area = 0
-
 cor = 'azul'
 
+# Globals to use 
 dic_creepers = {}
+matando = False
+voltar_pista = True
+id_encontrado_poha = False
+maior_contorno_area = 0
+ids = 0
 
+id_to_find  = 210
+marker_size  = 20
+font = cv2.FONT_HERSHEY_PLAIN
+scan_dist = 0
 
-## 
 
 # A função a seguir é chamada sempre que chega um novo frame
 def roda_todo_frame(imagem):
@@ -123,8 +138,8 @@ def roda_todo_frame(imagem):
 
     global dic_creepers
 
-    ### 
-    ## Vamos fazer o gabarito para a caixa azul, que era mais distante 
+    global ids 
+    global id_encontrado_poha
 
     try:
         cv_image = bridge.compressed_imgmsg_to_cv2(imagem, "bgr8")
@@ -135,23 +150,94 @@ def roda_todo_frame(imagem):
             mask = projeto_utils.filter_color(copia, low, high)                
             img, centro_yellow  =  projeto_utils.center_of_mass_region(mask, 200, 300, mask.shape[1], mask.shape[0])  
 
+            #----------------------------------------- CREEPERS ---------------------------------------#
             creeper_vermelho, creeper_verde, creeper_azul  = projeto_utils.identifica_creeper(cv_image)
             dic_creepers = {
                         'azul':creeper_azul, 
                         'vermelho':creeper_vermelho,
                         'verde':creeper_verde
                         }
+            #-------------------------------------------------------------------------------------------#
 
+
+
+            #----------------------------------------- REGRESSAO ---------------------------------------#
             saida_bgr, m, h = projeto_utils.ajuste_linear_grafico_x_fy(mask)
-
             ang = math.atan(m)
             ang_deg = math.degrees(ang)
-
             angle_yellow = ang_deg
+            #-------------------------------------------------------------------------------------------#
 
+
+
+            #----------------------------------------- ARUCO -------------------------------------------# 
+            gray = cv2.cvtColor(cv_image, cv2.COLOR_BGR2GRAY)
+            corners, ids, rejectedImgPoints = aruco.detectMarkers(gray, aruco_dict, parameters=parameters)
+            
+            try:
+                for id in ids:
+                    if id_to_find == int(id[0]):
+                        id_encontrado_poha = True
+            except:
+                pass
+
+            if ids is not None:
+                ret = aruco.estimatePoseSingleMarkers(corners, marker_size, camera_matrix, camera_distortion)
+                rvec, tvec = ret[0][0,0,:], ret[1][0,0,:]
+
+                #-- Desenha um retanculo e exibe Id do marker encontrado
+                aruco.drawDetectedMarkers(cv_image, corners, ids) 
+                aruco.drawAxis(cv_image, camera_matrix, camera_distortion, rvec, tvec, 1)
+
+                #-- Print tvec vetor de tanslação em x y z
+                str_position = "Marker x=%4.0f  y=%4.0f  z=%4.0f"%(tvec[0], tvec[1], tvec[2])
+                print(str_position)
+                cv2.putText(cv_image, str_position, (0, 100), font, 1, (0, 255, 0), 1, cv2.LINE_AA)
+
+                #####################---- Distancia Euclidiana ----#####################
+                # Calcula a distancia usando apenas a matriz tvec, matriz de tanslação
+                # Pode usar qualquer uma das duas formas
+                distance = np.sqrt(tvec[0]**2 + tvec[1]**2 + tvec[2]**2)
+                distancenp = np.linalg.norm(tvec)
+
+                #-- Print distance
+                str_dist = "Dist aruco=%4.0f  dis.np=%4.0f"%(distance, distancenp)
+                print(str_dist)
+                cv2.putText(cv_image, str_dist, (0, 15), font, 1, (0, 255, 0), 1, cv2.LINE_AA)
+
+                #####################---- Distancia pelo foco ----#####################
+
+                # raspicam v2 focal legth 
+                FOCAL_LENGTH = 3.6 #3.04
+                # pixel por unidade de medida
+                m = (camera_matrix[0][0]/FOCAL_LENGTH + camera_matrix[1][1]/FOCAL_LENGTH)/2
+                # corners[0][0][0][0] = [ID][plano?][pos_corner(sentido horario)][0=valor_pos_x, 1=valor_pos_y]	
+                pixel_length1 = math.sqrt(math.pow(corners[0][0][0][0] - corners[0][0][1][0], 2) + math.pow(corners[0][0][0][1] - corners[0][0][1][1], 2))
+                pixel_length2 = math.sqrt(math.pow(corners[0][0][2][0] - corners[0][0][3][0], 2) + math.pow(corners[0][0][2][1] - corners[0][0][3][1], 2))
+                pixlength = (pixel_length1+pixel_length2)/2
+                dist = marker_size * FOCAL_LENGTH / (pixlength/m)
+
+                #-- Print distancia focal
+                str_distfocal = "Dist focal=%4.0f"%(dist)
+                print(str_distfocal)
+                cv2.putText(cv_image, str_distfocal, (0, 30), font, 1, (0, 255, 0), 1, cv2.LINE_AA)	
+
+
+                ####################--------- desenha o cubo -----------#########################			
+                m = marker_size/2
+                pts = np.float32([[-m,m,m], [-m,-m,m], [m,-m,m], [m,m,m],[-m,m,0], [-m,-m,0], [m,-m,0], [m,m,0]])
+                imgpts, _ = cv2.projectPoints(pts, rvec, tvec, camera_matrix, camera_distortion)
+                imgpts = np.int32(imgpts).reshape(-1,2)
+                cv_image = cv2.drawContours(cv_image, [imgpts[:4]],-1,(0,0,255),4)
+                for i,j in zip(range(4),range(4,8)):
+                    cv_image = cv2.line(cv_image, tuple(imgpts[i]), tuple(imgpts[j]),(0,0,255),4)
+                cv_image = cv2.drawContours(cv_image, [imgpts[4:]],-1,(0,0,255),4)
+            #-------------------------------------------------------------------------------------------#    
+            
             projeto_utils.texto(cv_image, f"Distancia obstaculo: {distancia}", (15,50), color=(0,0,255))
             
-            cv2.imshow("Camera", dic_creepers[cor])
+            cv2.imshow("Camera", cv_image)
+            cv2.imshow("Creeper", dic_creepers[cor])
 
         cv2.waitKey(1)
     except CvBridgeError as e:
@@ -185,7 +271,6 @@ if __name__=="__main__":
     w_slow = 0.2
     w_rapido = 0.75
 
-    
     INICIAL= -1
     AVANCA = 0
     AVANCA_RAPIDO = 1
@@ -228,7 +313,6 @@ if __name__=="__main__":
         global angulo_final_original
         global angulo_final_calibrado 
         
-        
         rodando = True
         
         if const_angulo:
@@ -270,10 +354,6 @@ if __name__=="__main__":
         global matando
         global maior_contorno_area
         
-        # VERMELHO = False
-        # VERDE = False
-        # AZUL = True
-
         if distancia < 0.3:
             matando = False
         else:
@@ -282,7 +362,6 @@ if __name__=="__main__":
         def centraliza(media, centro, maior_contorno_area):
             if media is not None:
                 if len(media) != 0:
-                    print(media, centro)
                     print("DISTANCIA: " + str(distancia))
                     if (media[0] > centro[0] - 10 and media[0] < centro[0] + 10):
                         vel = Twist(Vector3(0.1,0,0), Vector3(0,0,0))
@@ -307,7 +386,7 @@ if __name__=="__main__":
         if distancia < 0.3 or rodando:
             state = MEIA_VOLTA
 
-        elif 1600 < maior_contorno_area < 3000 or matando:
+        elif (1600 < maior_contorno_area < 3000 or matando) and id_encontrado_poha:
             state = KILL_CREEPER
             
         else:
@@ -327,23 +406,22 @@ if __name__=="__main__":
             KILL_CREEPER: kill_creeper
             }
 
-
-
     r = rospy.Rate(200) 
 
     while not rospy.is_shutdown(): 
         try:
             media, centro, maior_contorno_area = projeto_utils.area_creeper(dic_creepers[cor])
-            print("Area: ", maior_contorno_area)
+            # print("Area: ", maior_contorno_area)
         except:
             pass 
         print("Estado: ", state)
-        print("Angulo: ", angulo)
-        print("Angulo Final Original: ", angulo_final_original)
-        print("Angulo Final Calibrado: ", angulo_final_calibrado)
-        print("Const", const_angulo)
-        print("Rodando", rodando)
-        print('Matando:', matando)
+        print("DGKHDGHKHGKSSKG", id_encontrado_poha)
+        # print("Angulo: ", angulo)
+        # print("Angulo Final Original: ", angulo_final_original)
+        # print("Angulo Final Calibrado: ", angulo_final_calibrado)
+        # print("Const", const_angulo)
+        # print("Rodando", rodando)
+        # print('Matando:', matando)
         acoes[state]()  # executa a funcão que está no dicionário
         dispatch()            
         r.sleep()
