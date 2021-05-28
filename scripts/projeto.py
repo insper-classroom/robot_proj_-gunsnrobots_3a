@@ -112,18 +112,18 @@ centro_caixa = (320, 240)
 creeper_vermelho = np.zeros((640, 480, 1), np.uint8)
 creeper_verde = np.zeros((640, 480, 1), np.uint8)
 creeper_azul = np.zeros((640, 480, 1), np.uint8)
-cor = 'azul'
+cor = 'verde'
 
 # Globals to use 
 dic_creepers = {}
 matando = False
 voltar_pista = True
-id_encontrado_poha = False
+id_encontrado = False
 agarradinha = False
 maior_contorno_area = 0
 ids = 0
 
-id_to_find  = 210
+id_to_find  = 13
 marker_size  = 20
 font = cv2.FONT_HERSHEY_PLAIN
 scan_dist = 0
@@ -141,7 +141,7 @@ def roda_todo_frame(imagem):
     global dic_creepers
 
     global ids 
-    global id_encontrado_poha
+    global id_encontrado
 
     try:
         cv_image = bridge.compressed_imgmsg_to_cv2(imagem, "bgr8")
@@ -178,8 +178,8 @@ def roda_todo_frame(imagem):
             
             try:
                 for id in ids:
-                    if id_to_find == int(id[0]):
-                        id_encontrado_poha = True
+                    if id_to_find == int(id[0]) and state != KILL_CREEPER and state != MEIA_VOLTA:
+                        id_encontrado = True
             except:
                 pass
 
@@ -318,6 +318,12 @@ if __name__=="__main__":
         global angulo_final_original
         global angulo_final_calibrado 
         
+        id_encontrado = False
+        
+        garra.publish(0.0) # fecha a garra
+        rospy.sleep(0.4) 
+        ombro.publish(1.5) # levanta o braco
+            
         rodando = True
         
         if const_angulo:
@@ -359,10 +365,15 @@ if __name__=="__main__":
         global matando
         global maior_contorno_area
         
-        if distancia < 0.3:
+        id_encontrado = False
+        
+        if distancia < 0.18:
             matando = False
+            
         else:
             matando = True
+            ombro.publish(-0.4) # sobe o braco
+            garra.publish(-1.0) # abre a garra
 
         def centraliza(media, centro, maior_contorno_area):
             if media is not None:
@@ -387,10 +398,10 @@ if __name__=="__main__":
         global state
         global voltar_pista
         
-        if distancia < 0.3 or rodando:
+        if distancia < 0.18 or rodando:
             state = MEIA_VOLTA
 
-        elif (1600 < maior_contorno_area < 3000 or matando) and id_encontrado_poha:
+        elif (1600 < maior_contorno_area < 3000 or matando) and id_encontrado:
             state = KILL_CREEPER
             
         else:
@@ -419,13 +430,13 @@ if __name__=="__main__":
         except:
             pass 
         print("Estado: ", state)
-        print("DGKHDGHKHGKSSKG", id_encontrado_poha)
-        # print("Angulo: ", angulo)
-        # print("Angulo Final Original: ", angulo_final_original)
-        # print("Angulo Final Calibrado: ", angulo_final_calibrado)
-        # print("Const", const_angulo)
-        # print("Rodando", rodando)
-        # print('Matando:', matando)
+        print("Encontrou ID: ", id_encontrado)
+        print("Angulo: ", angulo)
+        print("Angulo Final Original: ", angulo_final_original)
+        print("Angulo Final Calibrado: ", angulo_final_calibrado)
+        print("Const", const_angulo)
+        print("Rodando", rodando)
+        print('Matando:', matando)
         acoes[state]()  # executa a funcão que está no dicionário
         dispatch()            
         r.sleep()
