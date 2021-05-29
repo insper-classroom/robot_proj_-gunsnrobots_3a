@@ -232,7 +232,6 @@ if __name__=="__main__":
     cmd_vel = velocidade_saida
 
     recebe_scan = rospy.Subscriber("/scan", LaserScan, scaneou)
-    pose_sub = rospy.Subscriber('/odom', Odometry , mypose)
     recebedor = rospy.Subscriber(topico_imagem, CompressedImage, roda_todo_frame, queue_size=4, buff_size = 2**24)
     ref_odometria = rospy.Subscriber("/odom", Odometry, recebe_odometria)
     
