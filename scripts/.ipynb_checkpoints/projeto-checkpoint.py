@@ -1,8 +1,8 @@
 #! /usr/bin/env python3
 # -*- coding:utf-8 -*-
 
+# importando bibliotecas e arquivos utlizados ######################
 from __future__ import print_function, division
-
 from numpy.lib.function_base import copy
 from numpy.linalg.linalg import _matrix_rank_dispatcher
 import rospy
@@ -24,17 +24,48 @@ from scipy.spatial.transform import Rotation as R
 from std_msgs.msg import Header
 from std_msgs.msg import Float64
 import os
-
 import projeto_utils
 import cv2.aruco as aruco
+####################################################################
 
+# inicializando variaveis ###########################
 ranges = None
 minv = 0
 maxv = 10
 angulo = 0
 distancia = 10
 const_angulo = True
+bridge = CvBridge()
+centro_yellow = (320,240)
+frame = 0
+skip = 3
+m = 0
+angle_yellow = 0 
+low = projeto_utils.low
+high = projeto_utils.high
+centro_caixa = (320, 240)
+creeper_vermelho = np.zeros((640, 480, 1), np.uint8)
+creeper_verde = np.zeros((640, 480, 1), np.uint8)
+creeper_azul = np.zeros((640, 480, 1), np.uint8)
+dic_creepers = {}
+matando = False
+voltar_pista = True
+id_encontrado = False
+agarradinha = False
+maior_contorno_area = 0
+ids = 0
+rodando = False
+angulo_final_calibrado = None
+angulo_final_original = None
+marker_size  = 20
+font = cv2.FONT_HERSHEY_PLAIN
+scan_dist = 0
+##################~~~~'_'~~~~~#######################
+cor = input('Qual a cor do creeper?: ').lower()
+id_to_find  = int(input('Qual o ID do creeper?: '))
+#####################################################
 
+#################################--CONFIG_ARUCO--##############################################
 #--- Get the camera calibration path
 calib_path  = "/home/borg/catkin_ws/src/robot21.1/ros/exemplos211/scripts/"
 camera_matrix   = np.loadtxt(calib_path+'cameraMatrix_raspi.txt', delimiter=',')
@@ -45,44 +76,20 @@ aruco_dict  = aruco.getPredefinedDictionary(aruco.DICT_6X6_250)
 parameters  = aruco.DetectorParameters_create()
 parameters.minDistanceToBorder = 0
 parameters.adaptiveThreshWinSizeMax = 1000
+#######################################################################################
 
 
-bridge = CvBridge()
-
-def quart_to_euler(orientacao):
-    """
-    Converter quart. para euler (XYZ)
-    Retorna apenas o Yaw (wz)
-    """
-    r = R.from_quat(orientacao)
-    wx, wy, wz = (r.as_euler('xyz', degrees=True))
-
-    return wz
-
-## ROS
-def mypose(msg):
-    """
-    Recebe a Leitura da Odometria.
-    Para esta aplicacao, apenas a orientacao esta sendo usada
-    """
-    x = msg.pose.pose.orientation.x
-    y = msg.pose.pose.orientation.y
-    z = msg.pose.pose.orientation.z
-    w = msg.pose.pose.orientation.w
-
-    orientacao_robo = [[x,y,z,w]]
-
+#funcao responsavel por retornar a distancia do laser fronteiro 
 def scaneou(dado):
     """
     Rebe a Leitura do Lidar
-    Para esta aplicacao, apenas a menor distancia esta sendo usada
     """
     global distancia
     
     ranges = np.array(dado.ranges).round(decimals=2)
     distancia = ranges[0]
             
-
+#funcao responsavel por devolver o angulo atual do robo
 def recebe_odometria(data):
     global angulo
 
@@ -94,41 +101,6 @@ def recebe_odometria(data):
     if angulo < 0:
         angulo += 360
 
-    print(angulo)
-
-## Variáveis novas criadas pelo gabarito
-
-centro_yellow = (320,240)
-frame = 0
-skip = 3
-m = 0
-angle_yellow = 0 # angulo com a vertical
-
-low = projeto_utils.low
-high = projeto_utils.high
-
-centro_caixa = (320, 240)
-
-creeper_vermelho = np.zeros((640, 480, 1), np.uint8)
-creeper_verde = np.zeros((640, 480, 1), np.uint8)
-creeper_azul = np.zeros((640, 480, 1), np.uint8)
-cor = 'verde'
-
-# Globals to use 
-dic_creepers = {}
-matando = False
-voltar_pista = True
-id_encontrado = False
-agarradinha = False
-maior_contorno_area = 0
-ids = 0
-
-id_to_find  = 13
-marker_size  = 20
-font = cv2.FONT_HERSHEY_PLAIN
-scan_dist = 0
-
-
 # A função a seguir é chamada sempre que chega um novo frame
 def roda_todo_frame(imagem):
     global centro_yellow
@@ -137,9 +109,7 @@ def roda_todo_frame(imagem):
     global creeper_vermelho
     global creeper_verde
     global creeper_azul
-
     global dic_creepers
-
     global ids 
     global id_encontrado
 
@@ -176,13 +146,16 @@ def roda_todo_frame(imagem):
             gray = cv2.cvtColor(cv_image, cv2.COLOR_BGR2GRAY)
             corners, ids, rejectedImgPoints = aruco.detectMarkers(gray, aruco_dict, parameters=parameters)
             
+            # verificando se o id encontrado é o desejado
             try:
                 for id in ids:
-                    if id_to_find == int(id[0]) and state != KILL_CREEPER and state != MEIA_VOLTA:
+                    if id_to_find == int(id[0]):
                         id_encontrado = True
             except:
                 pass
-
+            
+            ######################################## ARUCO #############################################
+            
             if ids is not None:
                 ret = aruco.estimatePoseSingleMarkers(corners, marker_size, camera_matrix, camera_distortion)
                 rvec, tvec = ret[0][0,0,:], ret[1][0,0,:]
@@ -246,8 +219,12 @@ def roda_todo_frame(imagem):
         print('ex', e)
 
 
-if __name__=="__main__":
+# execucao principal
 
+if __name__=="__main__":
+    
+    # inicializacao topicos, publishers e subscribers
+    
     rospy.init_node("projeto")
 
     topico_imagem = "/camera/image/compressed"
@@ -258,13 +235,14 @@ if __name__=="__main__":
     pose_sub = rospy.Subscriber('/odom', Odometry , mypose)
     recebedor = rospy.Subscriber(topico_imagem, CompressedImage, roda_todo_frame, queue_size=4, buff_size = 2**24)
     ref_odometria = rospy.Subscriber("/odom", Odometry, recebe_odometria)
-
+    
+    # garra
     ombro = rospy.Publisher("/joint1_position_controller/command", Float64, queue_size=1)
     garra = rospy.Publisher("/joint2_position_controller/command", Float64, queue_size=1)
     
     zero = Twist(Vector3(0,0,0), Vector3(0,0,0))         
 
-
+    # variaveis a serem utilizadas
     x = 0
     tol_centro = 10 # tolerancia de fuga do centro
     tol_ang = 15 # tolerancia do angulo
@@ -276,6 +254,8 @@ if __name__=="__main__":
     w_slow = 0.2
     w_rapido = 0.75
 
+    # constantes de estado
+    
     INICIAL= -1
     AVANCA = 0
     AVANCA_RAPIDO = 1
@@ -284,48 +264,47 @@ if __name__=="__main__":
     KILL_CREEPER = 4
 
     state = INICIAL
-
+    
+    # funcoes de estado
+    
     def inicial():
         # Ainda sem uma ação específica
         pass
-
+    # robo avanca com velocidade normal
     def avanca():
         vel = Twist(Vector3(v_slow,0,0), Vector3(0,0,0)) 
         cmd_vel.publish(vel) 
-
+        
+    # robo avanca com velocidade rapida
     def avanca_rapido():
         vel = Twist(Vector3(v_rapido,0,0), Vector3(0,0,0))         
         cmd_vel.publish(vel)
-
+        
+    # robo alinha com a pista
     def alinha():
         delta_x = c_img[x] - centro_yellow[x]
         max_delta = 150.0
         w = (delta_x/max_delta)*w_rapido
         vel = Twist(Vector3(v_slow,0,0), Vector3(0,0,w)) 
         cmd_vel.publish(vel)        
-
-    def terminou():
-        zero = Twist(Vector3(0,0,0), Vector3(0,0,0))         
-        cmd_vel.publish(zero)
         
-    rodando = False
-    angulo_final_calibrado = None
-    angulo_final_original = None
-    
+    # robo gira 180 graus
     def meia_volta():
         global const_angulo
         global rodando
         global angulo_final_original
         global angulo_final_calibrado 
+        global id_encontrado
         
-        id_encontrado = False
-        
-        garra.publish(0.0) # fecha a garra
-        rospy.sleep(0.4) 
-        ombro.publish(1.5) # levanta o braco
+        # agarra o creeper apenas se o id tiver sido encontrado
+        if id_encontrado == True:
+            garra.publish(0.0) # fecha a garra
+            rospy.sleep(0.4) 
+            ombro.publish(1.5) # levanta o braco
             
         rodando = True
         
+        # ajuste do angulo 
         if const_angulo:
             angulo_final_original = angulo + 180
             if angulo_final_original > 360:
@@ -334,7 +313,8 @@ if __name__=="__main__":
                 angulo_final_calibrado = angulo_final_original
             
             const_angulo = False
-        
+            
+        # logica da rotacao
         if angulo_final_original > 360:
                 
                 if angulo > 180:
@@ -344,6 +324,7 @@ if __name__=="__main__":
                     else:
                         rodando = False
                         const_angulo = True
+                        id_encontrado = False
                 else:
                     if angulo < angulo_final_calibrado:
                         vel = Twist(Vector3(0,0,0), Vector3(0,0,0.4))
@@ -351,6 +332,7 @@ if __name__=="__main__":
                     else:
                         rodando = False
                         const_angulo = True
+                        id_encontrado = False
                     
         else:
             if angulo < angulo_final_calibrado:
@@ -359,22 +341,23 @@ if __name__=="__main__":
             else:
                 rodando = False
                 const_angulo = True
-
+                id_encontrado = False
+    
+    # robo se aproxima do creeper, abaixando o ombro e abrindo a garra
     def kill_creeper():
 
         global matando
-        global maior_contorno_area
-        
-        id_encontrado = False
+        global maior_contorno_area        
         
         if distancia < 0.18:
             matando = False
             
         else:
             matando = True
-            ombro.publish(-0.4) # sobe o braco
+            ombro.publish(-0.5) # sobe o braco
             garra.publish(-1.0) # abre a garra
-
+        
+        # robo se alinha ao centro de massa do creeper da cor alvo
         def centraliza(media, centro, maior_contorno_area):
             if media is not None:
                 if len(media) != 0:
@@ -391,19 +374,22 @@ if __name__=="__main__":
         media, centro, maior_contorno_area = projeto_utils.area_creeper(dic_creepers[cor])
         centraliza(media, centro, maior_contorno_area)
 
+    # funcao responsavel por controlar a LLogica de determinar o proximo estado
 
     def dispatch():
         
-        "Logica de determinar o proximo estado"
         global state
         global voltar_pista
         
-        if distancia < 0.18 or rodando:
+        # entra no estado MEIA_VOLTA
+        if (distancia < 0.5 and state != KILL_CREEPER) or (distancia < 0.18 and state == KILL_CREEPER) or rodando:
             state = MEIA_VOLTA
-
+    
+        # entra no estado KILL_CREEPER
         elif (1600 < maior_contorno_area < 3000 or matando) and id_encontrado:
             state = KILL_CREEPER
             
+        # verifica o alinhamento com a pista para decidir se avanca normal, rapido ou alinha
         else:
             if c_img[x] - tol_centro < centro_yellow[x] < c_img[x] + tol_centro:
                 state = AVANCA
@@ -412,6 +398,8 @@ if __name__=="__main__":
             else: 
                 state = ALINHA        
 
+    # dicionario de estados 
+    
     acoes = {
             INICIAL:inicial, 
             AVANCA: avanca, 
@@ -423,10 +411,10 @@ if __name__=="__main__":
 
     r = rospy.Rate(200) 
 
+    # loop principal
     while not rospy.is_shutdown(): 
         try:
             media, centro, maior_contorno_area = projeto_utils.area_creeper(dic_creepers[cor])
-            # print("Area: ", maior_contorno_area)
         except:
             pass 
         print("Estado: ", state)
@@ -434,9 +422,8 @@ if __name__=="__main__":
         print("Angulo: ", angulo)
         print("Angulo Final Original: ", angulo_final_original)
         print("Angulo Final Calibrado: ", angulo_final_calibrado)
-        print("Const", const_angulo)
         print("Rodando", rodando)
         print('Matando:', matando)
-        acoes[state]()  # executa a funcão que está no dicionário
+        acoes[state]()  # executa a funcão que está no dicionário de acordo com o estado
         dispatch()            
         r.sleep()
